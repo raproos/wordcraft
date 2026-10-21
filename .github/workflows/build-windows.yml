@@ -1,0 +1,40 @@
+name: build-windows
+
+# Builds an unsigned Windows x64 binary of the desktop app and uploads it as a
+# downloadable artifact. Signing and MSI packaging stay in the upstream release
+# workflow; this exists so a build can be produced without a local Rust setup.
+
+on:
+  push:
+    branches: [build-windows]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: wordcraft-windows
+
+      - name: Build desktop app
+        run: cargo build --release -p wordcraft
+
+      - name: Build CLI
+        run: cargo build --release -p wordcraft-cli
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: wordcraft-windows-x64
+          if-no-files-found: error
+          path: |
+            target/release/wordcraft.exe
+            target/release/wordcraft-cli.exe
