@@ -29,7 +29,7 @@ native-speaker review (human).
   Read Aloud, Backstage greetings) aren't wrapped in `tl!` yet, so they show in English in every
   language: the true share of visible strings is **~93–95%** (estimated).
 - Pending PRs: Norwegian Bokmål (#208) and Nynorsk (#210), Hebrew with RTL (#20).
-- **Proofing: English, Polish, Portuguese, Italian, Russian, Czech and Indonesian**, chosen per run from its language (`w:lang`, resolved through
+- **Proofing: English, Polish, Portuguese, Italian, Russian, Czech, Indonesian and Spanish**, chosen per run from its language (`w:lang`, resolved through
   the styles; Review › Language and the status bar set it: a short list, plus Set Proofing
   Language… for any of 30 languages and Set As Default for the document). Languages without proofing tools get
   the styles; Review › Language and the status bar set it). Languages without proofing tools get
