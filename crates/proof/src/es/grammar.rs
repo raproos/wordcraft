@@ -1,6 +1,7 @@
-//! Generic repeated-word and spacing checks with Spanish messages. No Spanish-specific grammar
-//! rules are inferred. A word written twice with a space is flagged, and the single word is the
-//! only suggestion: unlike Indonesian, Spanish does not reduplicate by writing the word twice.
+//! Spanish grammar: generic repeated-word and spacing checks, plus the opening question (¿) and
+//! exclamation (¡) marks Spanish puts before a sentence — Word's "falta el signo de apertura".
+//! A word written twice with a space is flagged, and the single word is the only suggestion:
+//! unlike Indonesian, Spanish does not reduplicate by writing the word twice.
 
 use crate::{Issue, IssueKind, ProofLang, words};
 
@@ -12,8 +13,43 @@ pub fn check(text: &str) -> Vec<Issue> {
     let mut issues = Vec::new();
     repeated_words(text, &words(text), &mut issues);
     spaces(text, &mut issues);
+    opening_marks(text, &mut issues);
     issues.sort_by_key(|i| (i.start, i.end));
     issues
+}
+
+/// Spanish opens a question with `¿` and an exclamation with `¡`. A sentence that closes with one
+/// of those marks without having opened with it gets the mark suggested at its start.
+fn opening_marks(text: &str, v: &mut Vec<Issue>) {
+    let mut start = 0usize;
+    let mut chars = text.char_indices().peekable();
+    while let Some((i, c)) = chars.next() {
+        let (open, close, name) = match c {
+            '?' => ('¿', '?', "«¿»"),
+            '!' => ('¡', '!', "«¡»"),
+            '.' | '…' => {
+                start = i + c.len_utf8();
+                continue;
+            }
+            _ => continue,
+        };
+        // Only a sentence-final mark counts: `?!` and `!?` are one ending, and a digit before the
+        // dot of an ordinal is not a sentence break.
+        if chars.peek().is_some_and(|(_, n)| *n == '?' || *n == '!') {
+            continue;
+        }
+        let sentence = text.get(start..i).unwrap_or("");
+        if sentence.contains(open) || sentence.contains(close) {
+            start = i + c.len_utf8();
+            continue;
+        }
+        // An abbreviation or an emoticon is not a sentence that needs an opening mark.
+        let words_in_sentence = sentence.split_whitespace().count();
+        if words_in_sentence > 0 {
+            v.push(issue(i, i + c.len_utf8(), format!("Falta el signo de apertura {name}"), vec![open.to_string()]));
+        }
+        start = i + c.len_utf8();
+    }
 }
 
 fn repeated_words(text: &str, ws: &[(usize, usize)], v: &mut Vec<Issue>) {
@@ -78,6 +114,18 @@ mod tests {
         assert!(issues.iter().any(|i| i.message == "Espacio doble"));
         assert!(issues.iter().all(|i| i.lang == ProofLang::Es && i.kind == IssueKind::Grammar));
         for text in ["El perro corre", "Hola. Adiós", "Dr. García", "¿Qué tal?", "¡Hola! Amigo", "3 : 1", "Número .5 y puntos ..."] {
+            assert!(check(text).is_empty(), "{text}: {:?}", check(text));
+        }
+    }
+
+    #[test]
+    fn questions_and_exclamations_keep_their_opening_mark() {
+        for (text, mark) in [("Qué tal?", '¿'), ("Hola!", '¡'), ("Dónde está?", '¿')] {
+            let issues = check(text);
+            let hit = issues.iter().find(|i| i.suggestions == [mark.to_string()]);
+            assert!(hit.is_some_and(|i| i.message.contains("signo de apertura")), "{text}: {issues:?}");
+        }
+        for text in ["¿Qué tal?", "¡Hola!", "¿Qué? ¡Bien!", "¿Y ahora?", "Dice: «¿qué?»", "3 : 1"] {
             assert!(check(text).is_empty(), "{text}: {:?}", check(text));
         }
     }
