@@ -401,10 +401,15 @@ pub fn show(app: &mut WordApp, ui: &mut Ui) {
                             resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::SelectableLabel, true, active, shown));
                             // A modern pill for the current tab instead of Word's underline: the tab
                             // strip is chrome, and a filled pill reads at a glance. Drawn before the
-                            // label so the text stays on top.
-                            if active {
+                            // label so the text stays on top, and faded in so switching tabs settles
+                            // rather than snapping.
+                            let pill_id = ui.id().with(("tab_pill", tab));
+                            let pill_on = ui.ctx().animate_bool_with_time(pill_id, active, 0.14);
+                            if pill_on > 0.0 {
                                 let pill = Rect::from_center_size(r.center(), vec2(w - 6.0, r.height() - 8.0));
-                                ui.painter().rect_filled(pill, 7.0, t.checked);
+                                let c = t.checked;
+                                let a = (pill_on * f32::from(u8::MAX)).round().clamp(0.0, f32::from(u8::MAX)) as u8;
+                                ui.painter().rect_filled(pill, 7.0, egui::Color32::from_rgba_unmultiplied(c.r(), c.g(), c.b(), a));
                             } else if resp.hovered() {
                                 ui.painter().rect_filled(r.shrink2(vec2(0.0, 4.0)), 4.0, t.hover);
                             }
