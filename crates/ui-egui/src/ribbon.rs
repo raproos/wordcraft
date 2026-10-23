@@ -399,7 +399,13 @@ pub fn show(app: &mut WordApp, ui: &mut Ui) {
                             }
                             let active = app.ui.tab == tab && !app.ui.backstage;
                             resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::SelectableLabel, true, active, shown));
-                            if resp.hovered() && !active {
+                            // A modern pill for the current tab instead of Word's underline: the tab
+                            // strip is chrome, and a filled pill reads at a glance. Drawn before the
+                            // label so the text stays on top.
+                            if active {
+                                let pill = Rect::from_center_size(r.center(), vec2(w - 6.0, r.height() - 8.0));
+                                ui.painter().rect_filled(pill, 7.0, t.checked);
+                            } else if resp.hovered() {
                                 ui.painter().rect_filled(r.shrink2(vec2(0.0, 4.0)), 4.0, t.hover);
                             }
                             let color = if contextual || active { t.accent_text } else { t.text };
@@ -426,10 +432,6 @@ pub fn show(app: &mut WordApp, ui: &mut Ui) {
                                 );
                             }
                             let resp = if cut { resp.on_hover_text(shown) } else { resp };
-                            if active {
-                                let u = Rect::from_center_size(pos2(r.center().x, r.max.y - 2.0), vec2(w - 16.0, 3.0));
-                                ui.painter().rect_filled(u, 2.0, t.accent);
-                            }
                             if resp.clicked() {
                                 let _ = app.run("ui.tab", json!({"tab": tab}));
                             }
