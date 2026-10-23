@@ -13,43 +13,127 @@ pub fn check(text: &str) -> Vec<Issue> {
     let mut issues = Vec::new();
     repeated_words(text, &words(text), &mut issues);
     spaces(text, &mut issues);
-    opening_marks(text, &mut issues);
+    for sentence in sentences(text) {
+        opening_marks(text, &sentence, &mut issues);
+        accent_first_word(text, &sentence, &mut issues);
+    }
     issues.sort_by_key(|i| (i.start, i.end));
     issues
 }
 
-/// Spanish opens a question with `¿` and an exclamation with `¡`. A sentence that closes with one
-/// of those marks without having opened with it gets the mark suggested at its start.
-fn opening_marks(text: &str, v: &mut Vec<Issue>) {
+/// A sentence as `(start, end)` byte offsets, `end` excluding the closing mark.
+struct Sentence {
+    start: usize,
+    end: usize,
+    /// The closing mark (`?`, `!`, or a full stop), when the sentence has one.
+    close: Option<char>,
+}
+
+/// Split `text` into sentences at `.`, `?`, `!` and `…`. `?!` and `!?` are one ending, and the
+/// text after an unterminated last sentence is a sentence of its own.
+fn sentences(text: &str) -> Vec<Sentence> {
+    let mut out = Vec::new();
     let mut start = 0usize;
     let mut chars = text.char_indices().peekable();
     while let Some((i, c)) = chars.next() {
-        let (open, close, name) = match c {
-            '?' => ('¿', '?', "«¿»"),
-            '!' => ('¡', '!', "«¡»"),
+        let close = match c {
+            '?' | '!' => {
+                // `?!` and `!?` end one sentence, not two.
+                while chars.peek().is_some_and(|(_, n)| *n == '?' || *n == '!') {
+                    chars.next();
+                }
+                Some(c)
+            }
             '.' | '…' => {
-                start = i + c.len_utf8();
-                continue;
+                // A decimal or an ordinal (`3.5`, `1.º`) is not a sentence ending.
+                if c == '.' && chars.peek().is_some_and(|(_, n)| n.is_ascii_digit()) {
+                    continue;
+                }
+                Some('.')
             }
             _ => continue,
         };
-        // Only a sentence-final mark counts: `?!` and `!?` are one ending, and a digit before the
-        // dot of an ordinal is not a sentence break.
-        if chars.peek().is_some_and(|(_, n)| *n == '?' || *n == '!') {
-            continue;
-        }
-        let sentence = text.get(start..i).unwrap_or("");
-        if sentence.contains(open) || sentence.contains(close) {
-            start = i + c.len_utf8();
-            continue;
-        }
-        // An abbreviation or an emoticon is not a sentence that needs an opening mark.
-        let words_in_sentence = sentence.split_whitespace().count();
-        if words_in_sentence > 0 {
-            v.push(issue(i, i + c.len_utf8(), format!("Falta el signo de apertura {name}"), vec![open.to_string()]));
-        }
+        out.push(Sentence { start, end: i, close });
         start = i + c.len_utf8();
     }
+    if start < text.len() {
+        out.push(Sentence { start, end: text.len(), close: None });
+    }
+    out
+}
+
+/// Spanish opens a question with `¿` and an exclamation with `¡`. A sentence that closes with one
+/// of those marks without having opened with it gets the mark suggested at its start.
+fn opening_marks(text: &str, sentence: &Sentence, v: &mut Vec<Issue>) {
+    let (open, name) = match sentence.close {
+        Some('?') => ('¿', "«¿»"),
+        Some('!') => ('¡', "«¡»"),
+        _ => return,
+    };
+    let Some(body) = text.get(sentence.start..sentence.end) else { return };
+    if body.contains(open) || body.contains(if open == '¿' { '?' } else { '!' }) {
+        return;
+    }
+    // An emoticon or a bare stub is not a sentence that needs an opening mark.
+    if !body.chars().any(char::is_alphabetic) {
+        return;
+    }
+    let close_len = sentence.close.map_or(0, char::len_utf8);
+    v.push(issue(sentence.end, sentence.end + close_len, format!("Falta el signo de apertura {name}"), vec![open.to_string()]));
+}
+
+/// Spanish accents an interrogative or exclamatory word that opens the sentence (`Que tal?` →
+/// `Qué tal?`). Only the first word is checked: a `que` later in the sentence is usually a
+/// conjunction (`¿Crees que viene?`), which takes no accent.
+fn accent_first_word(text: &str, sentence: &Sentence, v: &mut Vec<Issue>) {
+    if !matches!(sentence.close, Some('?' | '!')) {
+        return;
+    }
+    let Some(body) = text.get(sentence.start..sentence.end) else { return };
+    let mut iter = body.char_indices().peekable();
+    // The opening mark and any quote or space before the first word.
+    while iter.peek().is_some_and(|(_, c)| !c.is_alphabetic()) {
+        iter.next();
+    }
+    let Some((rel_start, _)) = iter.peek().copied() else { return };
+    let mut rel_end = rel_start;
+    while let Some((i, c)) = iter.next() {
+        if !c.is_alphabetic() {
+            break;
+        }
+        rel_end = i + c.len_utf8();
+    }
+    let Some(word) = body.get(rel_start..rel_end) else { return };
+    let lower = word.to_lowercase();
+    let Some(accented) = spanish_accent(&lower) else { return };
+    // Keep the capital of the word the user typed.
+    let fixed = if word.chars().next().is_some_and(char::is_uppercase) {
+        let mut c = accented.chars();
+        c.next().map(|f| f.to_uppercase().collect::<String>() + c.as_str()).unwrap_or_else(|| accented.to_string())
+    } else {
+        accented.to_string()
+    };
+    v.push(issue(sentence.start + rel_start, sentence.start + rel_end, format!("Falta la tilde: «{fixed}»"), vec![fixed]));
+}
+
+/// The accented form of a sentence-opening interrogative, when it has one.
+fn spanish_accent(word: &str) -> Option<&'static str> {
+    Some(match word {
+        "que" => "qué",
+        "como" => "cómo",
+        "donde" => "dónde",
+        "adonde" => "adónde",
+        "cuando" => "cuándo",
+        "quien" => "quién",
+        "quienes" => "quiénes",
+        "cual" => "cuál",
+        "cuales" => "cuáles",
+        "cuanto" => "cuánto",
+        "cuanta" => "cuánta",
+        "cuantos" => "cuántos",
+        "cuantas" => "cuántas",
+        _ => return None,
+    })
 }
 
 fn repeated_words(text: &str, ws: &[(usize, usize)], v: &mut Vec<Issue>) {
@@ -127,6 +211,18 @@ mod tests {
         }
         for text in ["¿Qué tal?", "¡Hola!", "¿Qué? ¡Bien!", "¿Y ahora?", "Dice: «¿qué?»", "3 : 1"] {
             assert!(check(text).is_empty(), "{text}: {:?}", check(text));
+        }
+    }
+
+    #[test]
+    fn sentence_opening_interrogatives_take_their_accent() {
+        for (text, want) in [("Que tal?", "Qué"), ("Como estas?", "Cómo"), ("¡Que alegría!", "Qué"), ("Donde vives?", "Dónde")] {
+            let issues = check(text);
+            assert!(issues.iter().any(|i| i.suggestions == [want.to_string()]), "{text}: {issues:?}");
+        }
+        // `que` as a conjunction keeps its accentless form, and an already-accented word is left alone.
+        for text in ["¿Crees que viene?", "¿Qué tal?", "¡Qué bien!", "Dice que no.", "¿Cómo estás?"] {
+            assert!(!check(text).iter().any(|i| i.message.starts_with("Falta la tilde")), "{text}: {:?}", check(text));
         }
     }
 
