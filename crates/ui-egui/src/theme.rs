@@ -306,10 +306,10 @@ impl Tokens {
             panel: Color32::from_rgb(0xFB, 0xFA, 0xF9),
             border: Color32::from_rgb(0xE5, 0xE1, 0xDD),
             border_strong: Color32::from_rgb(0xC8, 0xC4, 0xBF),
-            text: Color32::from_rgb(0x1F, 0x1E, 0x1D),
-            text_dim: Color32::from_rgb(0x5C, 0x5A, 0x58),
+            text: Color32::from_rgb(0x24, 0x24, 0x24),
+            text_dim: Color32::from_rgb(0x61, 0x61, 0x61),
             text_disabled: Color32::from_rgb(0xAF, 0xAC, 0xA8),
-            icon: Color32::from_rgb(0x3B, 0x3A, 0x38),
+            icon: Color32::from_rgb(0x42, 0x42, 0x42),
             hover: Color32::from_rgb(0xEA, 0xE7, 0xE3),
             pressed: Color32::from_rgb(0xDD, 0xD9, 0xD4),
             checked: Color32::from_rgb(0xDB, 0xE8, 0xF5),
@@ -629,6 +629,9 @@ pub enum TypeRung {
     Control,
     /// Group labels, status bar, tooltips.
     Caption,
+    /// Ribbon group captions: smaller than a caption so the strip reads as chrome, with the
+    /// open tracking small text needs.
+    Micro,
 }
 
 impl TypeRung {
@@ -638,6 +641,7 @@ impl TypeRung {
             TypeRung::Chrome => 12.5,
             TypeRung::Control => 11.5,
             TypeRung::Caption => 11.0,
+            TypeRung::Micro => 9.5,
         }
     }
     /// Extra letter-spacing in points (em-relative, so it scales with the size).
@@ -646,6 +650,7 @@ impl TypeRung {
             TypeRung::Chrome => -0.012 * self.size(),
             TypeRung::Control => 0.0,
             TypeRung::Caption => 0.018 * self.size(),
+            TypeRung::Micro => 0.024 * self.size(),
         }
     }
     /// Line height in points; tighter leading as the text grows.
@@ -654,6 +659,7 @@ impl TypeRung {
             TypeRung::Chrome => 1.25 * self.size(),
             TypeRung::Control => 1.42 * self.size(),
             TypeRung::Caption => 1.5 * self.size(),
+            TypeRung::Micro => 1.5 * self.size(),
         }
     }
 

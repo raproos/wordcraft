@@ -3,7 +3,7 @@
 use egui::{Align2, Color32, CornerRadius, Rect, Response, Sense, Stroke, Ui, pos2, vec2};
 use serde_json::Value;
 
-use crate::theme::{Tokens, regular};
+use crate::theme::{Tokens, TypeRung, regular};
 use crate::{WordApp, icons};
 
 /// Height of the ribbon content area (without group labels).
@@ -431,7 +431,7 @@ pub fn group_titled(ui: &mut Ui, id_title: &str, title: &str, launcher: Option<&
     } else {
         // Not folded: a drop-down left open while it was folded doesn't come back by itself.
         ui.data_mut(|d| d.remove::<bool>(collapsed_open_id(ui, id_title, position)));
-        let label_w = ui.ctx().fonts_mut(|f| f.layout_no_wrap(title.to_string(), regular(9.5), t.group_label).size().x);
+        let label_w = ui.ctx().fonts_mut(|f| f.layout_no_wrap(title.to_string(), TypeRung::Micro.regular(), t.group_label).size().x);
         let inner = ui.vertical(|ui| {
             ui.set_min_width(label_w + if launcher.is_some() { 22.0 } else { 10.0 });
             crate::ribbon_fit::set_compact(ui.ctx(), level == crate::ribbon_fit::COMPACT);
@@ -468,7 +468,7 @@ pub fn group_titled(ui: &mut Ui, id_title: &str, title: &str, launcher: Option<&
 fn title_row(ui: &mut Ui, r: Rect, id_title: &str, title: &str, launcher: Option<&str>, app: &mut WordApp) {
     let t = Tokens::get(ui.ctx());
     let title_y = r.center().y;
-    ui.painter().text(pos2(r.center().x, title_y), Align2::CENTER_CENTER, title, regular(9.5), t.group_label);
+    ui.painter().text(pos2(r.center().x, title_y), Align2::CENTER_CENTER, title, TypeRung::Micro.regular(), t.group_label);
     if let Some(cmd) = launcher {
         let lr = Rect::from_center_size(pos2(r.max.x - 6.0, title_y), vec2(11.0, 11.0));
         let resp = ui.interact(lr, ui.id().with(("launch", id_title)), Sense::click());
